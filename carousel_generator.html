@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Carrossel IA · @jane.iaexpert</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#C9A84C;--gold-l:#E8C97A;
+  --bg:#0a0a0a;--bg1:#0d0d0d;--bg2:#111;--bg3:#1a1a1a;
+  --border:#252525;--text:#fff;--muted:#888;--muted2:#555;
+  --r:8px;--rl:12px;
+}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:Georgia,serif}
+button,input,textarea{font-family:inherit}
+
+.app{display:flex;flex-direction:column;min-height:100vh}
+
+/* topbar */
+.topbar{background:var(--bg1);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:100}
+.t-left{display:flex;align-items:center;gap:8px;min-width:0}
+.logo{font-size:9px;letter-spacing:3px;color:var(--gold);text-transform:uppercase;white-space:nowrap}
+.car-title{background:transparent;border:none;color:#fff;font-size:14px;font-weight:700;outline:none;width:clamp(120px,30vw,280px)}
+.t-right{display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap}
+
+/* body split */
+.body-wrap{display:flex;flex:1;overflow:hidden;position:relative}
+.main{flex:1;overflow-y:auto;padding:14px}
+.sidebar{width:270px;background:var(--bg1);border-left:1px solid var(--border);overflow-y:auto;padding:14px;flex-shrink:0;transition:transform .25s}
+@media(max-width:860px){
+  .sidebar{position:fixed;right:0;top:0;height:100%;z-index:200;transform:translateX(100%);box-shadow:-6px 0 24px rgba(0,0,0,.7)}
+  .sidebar.open{transform:translateX(0)}
+}
+.s-close{display:none;margin-bottom:14px;cursor:pointer;color:var(--muted);font-size:12px;align-items:center;gap:5px}
+@media(max-width:860px){.s-close{display:flex}}
+.overlay-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:199}
+.overlay-bg.show{display:block}
+
+/* controls */
+.controls{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:14px}
+.topic-in{background:var(--bg3);border:1px solid var(--border);color:#fff;padding:8px 13px;border-radius:var(--r);font-size:13px;outline:none;flex:1;min-width:130px;transition:border .2s}
+.topic-in:focus{border-color:var(--gold)}
+.topic-in::placeholder{color:var(--muted2)}
+.ctrl-lbl{font-size:9px;letter-spacing:2px;color:var(--muted2);text-transform:uppercase;white-space:nowrap}
+.tones{display:flex;flex-wrap:wrap;gap:4px}
+.tone{padding:5px 10px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--muted);transition:all .18s;white-space:nowrap}
+.tone.active{background:var(--gold);color:#000;border-color:var(--gold);font-weight:700}
+.gen-wrap{display:flex;gap:5px;margin-left:auto}
+
+/* buttons */
+.btn{padding:7px 12px;border-radius:var(--r);font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:#ccc;transition:all .18s;white-space:nowrap}
+.btn:hover{border-color:var(--gold);color:var(--gold)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-gold{background:var(--gold);color:#000;border-color:var(--gold);font-weight:700}
+.btn-gold:hover{background:var(--gold-l);color:#000}
+.btn-outline-gold{background:transparent;color:var(--gold);border:1px solid var(--gold);font-size:12px;padding:7px 12px;border-radius:var(--r);cursor:pointer;transition:all .18s;white-space:nowrap}
+.btn-outline-gold:hover{background:var(--gold);color:#000}
+.btn-outline-gold:disabled{opacity:.4;cursor:not-allowed}
+
+/* slide preview */
+.preview-wrap{display:flex;flex-direction:column;align-items:center;gap:12px}
+.slide-outer{width:100%;max-width:440px}
+
+/* 4:5 ratio container */
+.slide-preview{
+  width:100%;
+  aspect-ratio:4/5;
+  background:var(--bg2);
+  border-radius:var(--rl);
+  border:1px solid var(--border);
+  position:relative;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  background-size:cover;
+  background-position:center;
+}
+.slide-overlay{position:absolute;inset:0;z-index:1;pointer-events:none}
+.slide-content{
+  position:relative;z-index:2;
+  padding:clamp(18px,5%,36px);
+  display:flex;flex-direction:column;
+  height:100%;
+}
+.slide-badge{display:inline-block;background:var(--gold);color:#000;font-size:9px;font-weight:700;padding:3px 10px;border-radius:3px;letter-spacing:2px;margin-bottom:10px;align-self:flex-start}
+.slide-title{font-size:clamp(20px,5.5vw,40px);font-weight:900;line-height:1.1;color:#fff;margin-bottom:10px}
+.slide-sub{font-size:clamp(12px,2.2vw,15px);color:#ddd;line-height:1.55;margin-bottom:auto}
+.slide-footer{font-size:10px;color:var(--muted);display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,.1);padding-top:8px;margin-top:14px}
+.slide-prog{height:2px;background:rgba(255,255,255,.1);border-radius:2px;margin-top:6px}
+.slide-bar{height:100%;border-radius:2px;transition:width .4s}
+.empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted2);gap:10px;font-size:13px;text-align:center}
+
+/* export canvas (off-screen, exact 1080x1350) */
+#exportCanvas{
+  position:fixed;left:-9999px;top:0;
+  width:1080px;height:1350px;
+  background:#0a0a0a;
+  overflow:hidden;
+  font-family:Georgia,serif;
+  pointer-events:none;
+  z-index:-1;
+}
+
+/* edit panel */
+.edit-panel{width:100%;max-width:440px;display:none}
+.edit-lbl{font-size:9px;letter-spacing:2px;color:var(--muted2);text-transform:uppercase;margin-bottom:5px;display:block}
+.edit-in{width:100%;background:var(--bg3);border:1px solid var(--border);color:#fff;padding:8px 11px;border-radius:var(--r);font-size:13px;outline:none;transition:border .2s;resize:vertical;line-height:1.5}
+.edit-in:focus{border-color:var(--gold)}
+
+/* thumbs */
+.thumbs{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;max-width:440px;width:100%}
+.thumb{width:48px;height:48px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:all .18s;flex-shrink:0}
+.thumb:hover{border-color:var(--gold)}
+.thumb.active{border:2px solid var(--gold)}
+.thumb-n{font-size:14px;font-weight:900;color:var(--muted2)}
+.thumb-l{font-size:7px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase;margin-top:1px}
+.thumb.filled .thumb-n{color:var(--gold)}
+.thumb.filled .thumb-l{color:var(--muted)}
+
+/* sidebar inputs */
+.s-lbl{font-size:9px;letter-spacing:2px;color:var(--muted2);text-transform:uppercase;margin-bottom:7px;display:block}
+.s-in{width:100%;background:var(--bg3);border:1px solid var(--border);color:#fff;padding:8px 11px;border-radius:var(--r);font-size:13px;outline:none;transition:border .2s;margin-bottom:14px}
+.s-in:focus{border-color:var(--gold)}
+.pos-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:14px}
+.pos-btn{padding:6px 3px;background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;cursor:pointer;border-radius:var(--r);text-align:center;transition:all .18s}
+.pos-btn.active{background:var(--gold);color:#000;border-color:var(--gold)}
+.accent-dots{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
+.adot{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:border .18s}
+.adot.active{border-color:#fff}
+input[type=range]{accent-color:var(--gold);width:100%}
+
+/* agent log */
+.agent-log{background:var(--bg3);border-radius:var(--r);padding:10px;max-height:150px;overflow-y:auto;font-size:11px;font-family:monospace;margin-bottom:14px}
+.log-line{margin-bottom:4px;display:flex;gap:5px}
+.log-ag{color:var(--gold);font-weight:700;min-width:68px;font-size:10px;flex-shrink:0}
+.log-msg{color:#aaa;line-height:1.4}
+.log-line.thinking .log-msg{color:#555;font-style:italic}
+.log-line.done .log-msg{color:#4CAF50}
+.log-line.error .log-msg{color:#f44336}
+
+/* export progress */
+.export-bar{display:none;width:100%;max-width:440px;background:var(--bg3);border-radius:20px;overflow:hidden;height:6px;margin-top:4px}
+.export-bar-fill{height:100%;background:var(--gold);border-radius:20px;transition:width .3s;width:0%}
+
+/* bottombar */
+.bottombar{background:var(--bg1);border-top:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;position:sticky;bottom:0;z-index:100}
+.nav-btns{display:flex;gap:5px}
+
+/* spinner */
+.spinner{display:inline-block;width:11px;height:11px;border:2px solid #333;border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:4px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* toast */
+.toast{position:fixed;bottom:72px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--gold);color:#000;padding:7px 16px;border-radius:20px;font-size:12px;font-weight:700;opacity:0;pointer-events:none;transition:all .28s;z-index:999;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* upload label */
+.upload-lbl{display:flex;align-items:center;gap:7px;padding:8px 11px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-size:12px;color:#ccc;transition:border .2s;margin-bottom:6px}
+.upload-lbl:hover{border-color:var(--gold)}
+
+/* github modal */
+.modal-wrap{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:300;align-items:center;justify-content:center;padding:16px}
+.modal-wrap.show{display:flex}
+.modal{background:var(--bg1);border:1px solid var(--border);border-radius:var(--rl);padding:24px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto}
+.modal h3{font-size:15px;color:var(--gold);margin-bottom:16px;font-weight:700}
+.modal-step{background:var(--bg3);border-radius:var(--r);padding:12px;margin-bottom:10px;font-size:12px;line-height:1.7;color:#ccc}
+.modal-step strong{color:#fff}
+.modal-step code{background:#000;color:var(--gold);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px}
+.copy-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);color:var(--gold);font-size:11px;cursor:pointer;margin-top:6px;transition:all .18s}
+.copy-btn:hover{border-color:var(--gold)}
+.badge-line{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<div id="overlayBg" class="overlay-bg" onclick="closeSidebar()"></div>
+<div class="toast" id="toast"></div>
+
+<!-- off-screen render canvas for PNG export -->
+<div id="exportCanvas"></div>
+
+<!-- GITHUB MODAL -->
+<div class="modal-wrap" id="ghModal">
+  <div class="modal">
+    <h3>↗ Deploy no GitHub Pages</h3>
+
+    <div class="modal-step">
+      <strong>1. Baixe o arquivo HTML</strong><br>
+      Clique em "Exportar HTML" e salve o arquivo <code>carrossel.html</code> no seu computador.
+    </div>
+
+    <div class="modal-step">
+      <strong>2. Crie um repositório no GitHub</strong><br>
+      Acesse <a href="https://github.com/new" target="_blank" style="color:var(--gold)">github.com/new</a>, crie um repo público, ex: <code>meu-carrossel</code>.<br>
+      Faça upload do arquivo HTML renomeado para <code>index.html</code>.
+    </div>
+
+    <div class="modal-step">
+      <strong>3. Ative o GitHub Pages</strong><br>
+      Vá em <code>Settings → Pages → Source</code><br>
+      Selecione <code>Deploy from branch → main → / (root)</code><br>
+      Clique em <strong>Save</strong>.
+    </div>
+
+    <div class="modal-step">
+      <strong>4. Acesse sua URL pública</strong><br>
+      Em ~1 minuto seu app estará disponível em:<br>
+      <code>https://SEU-USUARIO.github.io/meu-carrossel</code>
+      <div class="badge-line">
+        <span style="background:var(--bg);border:1px solid var(--border);padding:4px 10px;border-radius:var(--r);font-size:11px;color:var(--gold)">✓ Gratuito</span>
+        <span style="background:var(--bg);border:1px solid var(--border);padding:4px 10px;border-radius:var(--r);font-size:11px;color:var(--gold)">✓ HTTPS</span>
+        <span style="background:var(--bg);border:1px solid var(--border);padding:4px 10px;border-radius:var(--r);font-size:11px;color:var(--gold)">✓ Sem servidor</span>
+      </div>
+    </div>
+
+    <div class="modal-step">
+      <strong>Dica:</strong> Para usar a geração de IA no deploy, configure uma proxy ou use a chave da API via variável de ambiente no Cloudflare Workers / Vercel Edge Function.
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+      <button class="btn btn-gold" onclick="exportHTML()">↓ Exportar HTML agora</button>
+      <button class="btn" onclick="closeGhModal()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="t-left">
+    <div>
+      <div class="logo">✦ Carrossel IA</div>
+      <input class="car-title" id="carTitle" value="Novo Carrossel · Autoridade" />
+    </div>
+  </div>
+  <div class="t-right">
+    <button class="btn" onclick="resetAll()">↺ Novo</button>
+    <button class="btn" onclick="loadSample()">⊙ Exemplo</button>
+    <button class="btn btn-gold" id="exportPngBtn" onclick="exportAllPNG()" disabled>↓ PNG 4:5</button>
+    <button class="btn" onclick="openGhModal()">↗ GitHub</button>
+    <button class="btn" id="sidebarToggle" onclick="openSidebar()" style="display:none">⚙</button>
+  </div>
+</div>
+
+<!-- BODY -->
+<div class="body-wrap">
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="controls">
+      <span class="ctrl-lbl">Tópico</span>
+      <input class="topic-in" id="topicInput" placeholder="Ex: Infraestrutura de IA" />
+      <span class="ctrl-lbl">Tom</span>
+      <div class="tones">
+        <div class="tone" onclick="setTone(this,'Viral')">Viral</div>
+        <div class="tone active" onclick="setTone(this,'Autoridade')">Autoridade</div>
+        <div class="tone" onclick="setTone(this,'Vendas')">Vendas</div>
+        <div class="tone" onclick="setTone(this,'Direto')">Direto</div>
+        <div class="tone" onclick="setTone(this,'Educacional')">Educacional</div>
+        <div class="tone" onclick="setTone(this,'Provocativo')">Provocativo</div>
+      </div>
+      <div class="gen-wrap">
+        <button class="btn-outline-gold" id="btnCards" onclick="generateCards()">✦ Cards</button>
+        <button class="btn btn-gold" id="btnAll" onclick="generateAll()">✦✦ Gerar Tudo</button>
+      </div>
+    </div>
+
+    <div class="preview-wrap">
+      <div class="slide-outer">
+        <div class="slide-preview" id="slidePreview">
+          <div class="slide-overlay" id="slideOverlay"></div>
+          <div class="slide-content" id="slideContent">
+            <div class="empty-state">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+              <p>Insira um tópico e gere seu carrossel</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="export-bar" id="exportBar"><div class="export-bar-fill" id="exportFill"></div></div>
+
+      <div class="edit-panel" id="editPanel">
+        <span class="edit-lbl">Editar slide atual</span>
+        <div style="margin-bottom:7px">
+          <input class="edit-in" id="editTitle" placeholder="Título principal" style="font-weight:700;font-size:14px" />
+        </div>
+        <div style="margin-bottom:7px">
+          <textarea class="edit-in" id="editSub" placeholder="Subtítulo" rows="2"></textarea>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn" onclick="applyEdit()">✓ Aplicar</button>
+          <button class="btn" id="regenBtn" onclick="regenSlide()"><span class="spinner" id="regenSp" style="display:none"></span>↻ Regerar</button>
+          <button class="btn btn-gold" onclick="exportSinglePNG()" id="exportOneBtn" disabled>↓ PNG este</button>
+        </div>
+      </div>
+
+      <div class="thumbs" id="thumbs"></div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="s-close" onclick="closeSidebar()">✕ Fechar</div>
+
+    <span class="s-lbl">Agentes — log</span>
+    <div class="agent-log" id="agentLog">
+      <div class="log-line"><span class="log-ag">SISTEMA</span><span class="log-msg">Pronto para gerar.</span></div>
+    </div>
+
+    <span class="s-lbl">@Handle</span>
+    <input class="s-in" id="handle" value="@jane.iaexpert" onchange="renderSlide(cur)" />
+
+    <span class="s-lbl">Autor</span>
+    <input class="s-in" id="author" value="Jane" onchange="renderSlide(cur)" />
+
+    <span class="s-lbl">Imagem de fundo</span>
+    <label class="upload-lbl">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+      <span id="imgLbl">Enviar foto</span>
+      <input type="file" accept="image/*" id="bgUpload" style="display:none" onchange="handleBg(this)" />
+    </label>
+    <button id="clearImgBtn" onclick="clearBg()" style="display:none;margin-bottom:14px;width:100%" class="btn">✕ Remover imagem</button>
+
+    <span class="s-lbl">Escurecimento — <span id="gradVal" style="color:var(--gold)">70%</span></span>
+    <input type="range" min="0" max="100" value="70" step="1" id="gradSlider" oninput="updateGrad(this.value)" style="margin-bottom:14px" />
+
+    <span class="s-lbl">Posição — vertical</span>
+    <div class="pos-grid">
+      <button class="pos-btn" onclick="setPos('v','top',this)">Superior</button>
+      <button class="pos-btn" onclick="setPos('v','center',this)">Centro</button>
+      <button class="pos-btn active" onclick="setPos('v','bottom',this)">Inferior</button>
+    </div>
+
+    <span class="s-lbl">Posição — horizontal</span>
+    <div class="pos-grid">
+      <button class="pos-btn active" onclick="setPos('h','left',this)">Esquerda</button>
+      <button class="pos-btn" onclick="setPos('h','center',this)">Central</button>
+      <button class="pos-btn" onclick="setPos('h','right',this)">Direita</button>
+    </div>
+
+    <span class="s-lbl">Cor de destaque</span>
+    <div class="accent-dots" id="accentDots">
+      <div class="adot active" style="background:#C9A84C" data-c="#C9A84C" onclick="setAccent(this)"></div>
+      <div class="adot" style="background:#4A9EFF" data-c="#4A9EFF" onclick="setAccent(this)"></div>
+      <div class="adot" style="background:#FF6B6B" data-c="#FF6B6B" onclick="setAccent(this)"></div>
+      <div class="adot" style="background:#6BCB77" data-c="#6BCB77" onclick="setAccent(this)"></div>
+      <div class="adot" style="background:#C77DFF" data-c="#C77DFF" onclick="setAccent(this)"></div>
+      <div class="adot" style="background:#FF9F43" data-c="#FF9F43" onclick="setAccent(this)"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOMBAR -->
+<div class="bottombar">
+  <div class="nav-btns">
+    <button class="btn" onclick="prevSlide()">← Anterior</button>
+    <button class="btn btn-gold" id="saveBtn" onclick="saveSlide()" disabled>↓ Salvar</button>
+    <button class="btn" onclick="nextSlide()">Próximo →</button>
+  </div>
+  <div style="font-size:11px;color:var(--muted)" id="slideCounter">— / —</div>
+</div>
+
+</div>
+
+<script>
+const SCHEMA=[
+  {role:'Hook',badge:'GANCHO'},
+  {role:'Problema',badge:'PROBLEMA'},
+  {role:'Insight',badge:'INSIGHT'},
+  {role:'Framework',badge:'FRAMEWORK'},
+  {role:'Explicação',badge:'EXPLICAÇÃO'},
+  {role:'Exemplo',badge:'EXEMPLO'},
+  {role:'Erro',badge:'ERRO COMUM'},
+  {role:'CTA',badge:'PRÓXIMO PASSO'}
+];
+
+let slides=[],cur=0,tone='Autoridade',accent='#C9A84C',vPos='bottom',hPos='left',grad=0.7,bgImage=null;
+
+/* responsive sidebar toggle visibility */
+function checkSidebarToggle(){
+  const t=document.getElementById('sidebarToggle');
+  t.style.display=window.innerWidth<=860?'flex':'none';
+}
+window.addEventListener('resize',checkSidebarToggle);
+checkSidebarToggle();
+
+function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('overlayBg').classList.add('show')}
+function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlayBg').classList.remove('show')}
+function openGhModal(){document.getElementById('ghModal').classList.add('show')}
+function closeGhModal(){document.getElementById('ghModal').classList.remove('show')}
+
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+
+function log(ag,msg,type=''){
+  const el=document.getElementById('agentLog');
+  const d=document.createElement('div');d.className='log-line '+(type||'');
+  d.innerHTML=`<span class="log-ag">${ag}</span><span class="log-msg">${msg}</span>`;
+  el.appendChild(d);el.scrollTop=el.scrollHeight;
+}
+
+function setTone(el,t){document.querySelectorAll('.tone').forEach(x=>x.classList.remove('active'));el.classList.add('active');tone=t}
+function setPos(axis,val,el){el.parentElement.querySelectorAll('.pos-btn').forEach(x=>x.classList.remove('active'));el.classList.add('active');axis==='v'?vPos=val:hPos=val;renderSlide(cur)}
+function updateGrad(v){grad=v/100;document.getElementById('gradVal').textContent=v+'%';renderSlide(cur)}
+function setAccent(el){document.querySelectorAll('.adot').forEach(x=>x.classList.remove('active'));el.classList.add('active');accent=el.dataset.c;document.documentElement.style.setProperty('--gold',accent);renderSlide(cur)}
+
+function handleBg(input){
+  const f=input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    bgImage=e.target.result;
+    document.getElementById('imgLbl').textContent=f.name.length>20?f.name.slice(0,18)+'…':f.name;
+    document.getElementById('clearImgBtn').style.display='block';
+    renderSlide(cur);toast('Imagem aplicada ✓');
+  };r.readAsDataURL(f);
+}
+function clearBg(){
+  bgImage=null;
+  document.getElementById('bgUpload').value='';
+  document.getElementById('imgLbl').textContent='Enviar foto';
+  document.getElementById('clearImgBtn').style.display='none';
+  renderSlide(cur);toast('Imagem removida');
+}
+
+function buildThumbs(){
+  const c=document.getElementById('thumbs');c.innerHTML='';
+  SCHEMA.forEach((s,i)=>{
+    const d=document.createElement('div');
+    d.className='thumb'+(slides[i]?' filled':'')+(i===cur?' active':'');
+    d.innerHTML=`<span class="thumb-n">${i+1}</span><span class="thumb-l">${s.role}</span>`;
+    d.onclick=()=>{cur=i;renderSlide(i);buildThumbs()};
+    c.appendChild(d);
+  });
+}
+
+function renderSlide(idx){
+  const s=slides[idx];
+  const prev=document.getElementById('slidePreview');
+  prev.style.backgroundImage=bgImage?`url(${bgImage})`:'linear-gradient(135deg,#1a1208 0%,#0a0a0a 100%)';
+  if(bgImage)prev.style.backgroundSize='cover',prev.style.backgroundPosition='center';
+  document.getElementById('slideOverlay').style.background=
+    `linear-gradient(to top,rgba(0,0,0,${grad}) 0%,rgba(0,0,0,${grad*.5}) 55%,rgba(0,0,0,${grad*.15}) 100%)`;
+  const content=document.getElementById('slideContent');
+  const jv={top:'flex-start',center:'center',bottom:'flex-end'}[vPos];
+  const ha={left:'left',center:'center',right:'right'}[hPos];
+  const sa={left:'flex-start',center:'center',right:'flex-end'}[hPos];
+  content.style.justifyContent=jv;content.style.textAlign=ha;
+  document.getElementById('slideCounter').textContent=`${idx+1} / ${SCHEMA.length}`;
+  const ep=document.getElementById('editPanel');ep.style.display=s?'block':'none';
+  if(!s){content.innerHTML=`<div class="empty-state"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg><p>${SCHEMA[idx].role}</p></div>`;return}
+  const tSize=s.title.length>45?'clamp(16px,4.5vw,30px)':s.title.length>28?'clamp(19px,5vw,36px)':'clamp(22px,5.5vw,40px)';
+  const h=document.getElementById('handle').value,a=document.getElementById('author').value;
+  content.innerHTML=`
+    <div class="slide-badge" style="background:${accent};color:#000;align-self:${sa}">${s.badge}</div>
+    <div class="slide-title" style="font-size:${tSize}">${s.title}</div>
+    <div class="slide-sub">${s.subtitle}</div>
+    <div style="margin-top:auto">
+      <div class="slide-footer"><span>${h} · ${a}</span><span>${idx+1}/${SCHEMA.length}</span></div>
+      <div class="slide-prog"><div class="slide-bar" style="width:${(idx+1)/SCHEMA.length*100}%;background:${accent}"></div></div>
+    </div>`;
+  document.getElementById('editTitle').value=s.title;
+  document.getElementById('editSub').value=s.subtitle;
+}
+
+/* ── Build 1080×1350 canvas element ── */
+function buildExportSlide(idx){
+  const s=slides[idx];
+  const h=document.getElementById('handle').value,a=document.getElementById('author').value;
+  const W=1080,H=1350;
+  const el=document.getElementById('exportCanvas');
+  el.style.width=W+'px';el.style.height=H+'px';
+  const bgs=bgImage?`background-image:url(${bgImage});background-size:cover;background-position:center`
+    :`background:linear-gradient(135deg,#1a1208 0%,#0a0a0a 100%)`;
+  const gradCss=`linear-gradient(to top,rgba(0,0,0,${grad}) 0%,rgba(0,0,0,${grad*.5}) 55%,rgba(0,0,0,${grad*.15}) 100%)`;
+  const px=(n)=>Math.round(n)+'px';
+  const pad=72,fs_badge=28,fs_title=s.title.length>40?72:s.title.length>25?86:100,fs_sub=42,fs_foot=30;
+  el.innerHTML=`
+  <div style="width:${W}px;height:${H}px;${bgs};position:relative;overflow:hidden;font-family:Georgia,serif">
+    <div style="position:absolute;inset:0;background:${gradCss};z-index:1"></div>
+    <div style="position:relative;z-index:2;padding:${px(pad)};display:flex;flex-direction:column;height:100%;text-align:${hPos==='center'?'center':'left'}">
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:${vPos==='top'?'flex-start':vPos==='center'?'center':'flex-end'}">
+        <div style="display:inline-block;background:${accent};color:#000;font-size:${px(fs_badge)};font-weight:700;padding:10px 28px;border-radius:6px;letter-spacing:4px;margin-bottom:28px;align-self:${hPos==='center'?'center':'flex-start'}">${s.badge}</div>
+        <div style="font-size:${px(fs_title)};font-weight:900;line-height:1.1;color:#fff;margin-bottom:28px">${s.title}</div>
+        <div style="font-size:${px(fs_sub)};color:#ddd;line-height:1.55">${s.subtitle}</div>
+      </div>
+      <div style="margin-top:40px;border-top:2px solid rgba(255,255,255,.12);padding-top:20px">
+        <div style="font-size:${px(fs_foot)};color:#888;display:flex;justify-content:space-between">${h} · ${a}<span>${idx+1}/${SCHEMA.length}</span></div>
+        <div style="height:4px;background:rgba(255,255,255,.1);border-radius:4px;margin-top:14px"><div style="height:100%;width:${(idx+1)/SCHEMA.length*100}%;background:${accent};border-radius:4px"></div></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── Export single PNG ── */
+async function exportSinglePNG(){
+  if(!slides[cur])return;
+  buildExportSlide(cur);
+  await new Promise(r=>setTimeout(r,120));
+  const el=document.getElementById('exportCanvas').firstElementChild;
+  const canvas=await html2canvas(el,{scale:1,useCORS:true,backgroundColor:null,width:1080,height:1350,logging:false});
+  download(canvas,`slide_${cur+1}_${SCHEMA[cur].role.toLowerCase()}.png`);
+  toast(`Slide ${cur+1} exportado ✓`);
+}
+
+/* ── Export all PNGs ── */
+async function exportAllPNG(){
+  const filled=slides.filter(Boolean);if(!filled.length){toast('Nenhum slide gerado');return}
+  const bar=document.getElementById('exportBar'),fill=document.getElementById('exportFill');
+  bar.style.display='block';fill.style.width='0%';
+  document.getElementById('exportPngBtn').disabled=true;
+  document.getElementById('exportPngBtn').innerHTML='<span class="spinner"></span>Exportando...';
+  for(let i=0;i<SCHEMA.length;i++){
+    if(!slides[i])continue;
+    buildExportSlide(i);
+    await new Promise(r=>setTimeout(r,150));
+    const el=document.getElementById('exportCanvas').firstElementChild;
+    const canvas=await html2canvas(el,{scale:1,useCORS:true,backgroundColor:null,width:1080,height:1350,logging:false});
+    download(canvas,`slide_${i+1}_${SCHEMA[i].role.toLowerCase()}.png`);
+    fill.style.width=((i+1)/SCHEMA.length*100)+'%';
+    await new Promise(r=>setTimeout(r,200));
+  }
+  bar.style.display='none';
+  document.getElementById('exportPngBtn').disabled=false;
+  document.getElementById('exportPngBtn').innerHTML='↓ PNG 4:5';
+  toast('Todos os PNGs exportados ✓');
+}
+
+function download(canvas,name){
+  const a=document.createElement('a');a.download=name;a.href=canvas.toDataURL('image/png',1.0);a.click();
+}
+
+/* ── Export HTML ── */
+function exportHTML(){
+  const h=document.getElementById('handle').value,a=document.getElementById('author').value;
+  const t=document.getElementById('carTitle').value;
+  let html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${t}</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#0a0a0a;font-family:Georgia,serif;padding:20px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center}
+.s{width:min(100%,440px);aspect-ratio:4/5;background:linear-gradient(135deg,#1a1208,#0a0a0a);border-radius:12px;overflow:hidden;position:relative;display:flex;flex-direction:column;justify-content:flex-end}
+.ov{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.7),rgba(0,0,0,.3) 55%,transparent)}
+.c{position:relative;z-index:2;padding:clamp(18px,5%,36px);display:flex;flex-direction:column;height:100%;justify-content:flex-end}
+.badge{display:inline-block;background:${accent};color:#000;font-size:9px;font-weight:700;padding:3px 10px;border-radius:3px;letter-spacing:2px;margin-bottom:10px;align-self:flex-start}
+.title{font-size:clamp(20px,5vw,38px);font-weight:900;color:#fff;line-height:1.1;margin-bottom:10px}
+.sub{font-size:clamp(12px,2vw,15px);color:#ddd;line-height:1.55;margin-bottom:auto}
+.foot{font-size:10px;color:#666;display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,.1);padding-top:8px;margin-top:14px}
+.prog{height:2px;background:rgba(255,255,255,.1);border-radius:2px;margin-top:6px}
+.bar{height:100%;background:${accent};border-radius:2px}</style></head><body>`;
+  slides.forEach((s,i)=>{
+    if(!s)return;
+    html+=`<div class="s"><div class="ov"></div><div class="c"><span class="badge">${s.badge}</span><div class="title">${s.title}</div><div class="sub">${s.subtitle}</div><div style="margin-top:auto"><div class="foot"><span>${h} · ${a}</span><span>${i+1}/${SCHEMA.length}</span></div><div class="prog"><div class="bar" style="width:${(i+1)/SCHEMA.length*100}%"></div></div></div></div></div>`;
+  });
+  html+='</body></html>';
+  const blob=new Blob([html],{type:'text/html'});
+  const a2=document.createElement('a');a2.href=URL.createObjectURL(blob);a2.download='carrossel.html';a2.click();
+  toast('HTML exportado ✓');
+}
+
+/* ── Edit ── */
+function applyEdit(){if(!slides[cur])return;slides[cur].title=document.getElementById('editTitle').value;slides[cur].subtitle=document.getElementById('editSub').value;renderSlide(cur);toast('Slide atualizado ✓')}
+function prevSlide(){if(cur>0){cur--;renderSlide(cur);buildThumbs()}}
+function nextSlide(){if(cur<SCHEMA.length-1){cur++;renderSlide(cur);buildThumbs()}}
+function saveSlide(){applyEdit();log('DESIGN','Slide '+(cur+1)+' salvo ✓','done')}
+
+/* ── Regen ── */
+async function regenSlide(){
+  if(!slides[cur])return;
+  const sp=document.getElementById('regenSp');sp.style.display='inline-block';
+  document.getElementById('regenBtn').disabled=true;
+  const topic=document.getElementById('topicInput').value||'IA para negócios';
+  log('COPYWRITER',`Regerando slide ${cur+1}...`,'thinking');
+  try{
+    const txt=await api(`Copywriter expert Instagram, tom ${tone}. Slide "${SCHEMA[cur].role}" sobre "${topic}". Retorne SOMENTE JSON sem markdown: {"title":"max 7 palavras","subtitle":"1-2 frases PT-BR"}`,300);
+    const m=txt.match(/\{[\s\S]*?\}/);
+    if(m){const p=JSON.parse(m[0]);slides[cur]={...slides[cur],...p};renderSlide(cur);log('COPYWRITER','Regerado ✓','done');toast('Slide regerado ✓')}
+  }catch(e){log('SISTEMA','Erro','error')}
+  sp.style.display='none';document.getElementById('regenBtn').disabled=false;
+}
+
+/* ── Generate ALL ── */
+async function generateAll(){
+  const topic=document.getElementById('topicInput').value.trim();
+  if(!topic){toast('Insira um tópico!');return}
+  setBusy(true);slides=[];buildThumbs();
+  document.getElementById('agentLog').innerHTML='';
+  log('SISTEMA','Pipeline: "'+topic+'"');
+  log('PESQUISADOR','Buscando dados...','thinking');
+  let research={keyFacts:[],angle:'',painPoints:[]};
+  try{research=await runResearch(topic)}catch{log('PESQUISADOR','Sem web search, prosseguindo...','thinking')}
+  log('PESQUISADOR','Pesquisa ✓','done');
+  log('ESTRATEGISTA','Definindo narrativa...','thinking');await delay(180);
+  log('ESTRATEGISTA','Estrutura ✓','done');
+  log('COPYWRITER','Escrevendo 8 slides...','thinking');
+  try{
+    slides=await genSlides(topic,tone,research);
+    log('COPYWRITER','8 slides ✓','done');
+    log('DESIGN','Formatando...','thinking');await delay(180);
+    log('DESIGN','Pronto ✓','done');
+    cur=0;buildThumbs();renderSlide(0);
+    unlockExport();toast('Carrossel gerado 🎉');
+  }catch(e){log('SISTEMA','Erro: '+e.message,'error');toast('Erro ao gerar')}
+  setBusy(false);
+}
+
+/* ── Generate CARDS ── */
+async function generateCards(){
+  const topic=document.getElementById('topicInput').value.trim();
+  if(!topic){toast('Insira um tópico!');return}
+  setBusy(true);slides=[];buildThumbs();
+  document.getElementById('agentLog').innerHTML='';
+  log('COPYWRITER','Gerando cards...','thinking');
+  try{
+    slides=await genSlides(topic,tone,{});
+    log('COPYWRITER','Cards ✓','done');
+    cur=0;buildThumbs();renderSlide(0);unlockExport();toast('Cards prontos ✓');
+  }catch(e){log('SISTEMA','Erro','error');toast('Erro ao gerar')}
+  setBusy(false);
+}
+
+function unlockExport(){
+  document.getElementById('exportPngBtn').disabled=false;
+  document.getElementById('exportOneBtn').disabled=false;
+  document.getElementById('saveBtn').disabled=false;
+}
+
+/* ── Research agent ── */
+async function runResearch(topic){
+  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    model:'claude-sonnet-4-20250514',max_tokens:800,
+    tools:[{type:'web_search_20250305',name:'web_search'}],
+    messages:[{role:'user',content:`Pesquise sobre: "${topic}" para carrossel Instagram negócios/IA, tom ${tone}. Retorne SOMENTE JSON: {"keyFacts":["f1","f2","f3"],"angle":"ângulo","painPoints":["d1","d2"]}`}]
+  })});
+  const d=await r.json();
+  const txt=d.content.filter(x=>x.type==='text').map(x=>x.text).join(' ');
+  const m=txt.match(/\{[\s\S]*\}/);
+  return m?JSON.parse(m[0]):{keyFacts:[],angle:'',painPoints:[]};
+}
+
+/* ── Slide generator ── */
+async function genSlides(topic,tone,research){
+  const ctx=research.keyFacts?.length?`Contexto:\n- Fatos: ${research.keyFacts.join('; ')}\n- Ângulo: ${research.angle}\n- Dores: ${(research.painPoints||[]).join('; ')}`:'';
+  const th={Autoridade:'confiante, baseado em dados',Viral:'chocante, contra-intuitivo',Vendas:'benefício claro, urgência',Direto:'sem rodeios, prático',Educacional:'didático, passo a passo',Provocativo:'desafiador, questiona crenças'}[tone]||'natural';
+  const txt=await api(`Crie 8 slides carrossel Instagram para @jane.iaexpert (IA como sistema de negócios).
+Tópico: "${topic}" | Tom: ${tone} (${th}) ${ctx}
+Retorne SOMENTE JSON válido:
+{"slides":[
+{"role":"Hook","badge":"GANCHO","title":"","subtitle":""},
+{"role":"Problema","badge":"PROBLEMA","title":"","subtitle":""},
+{"role":"Insight","badge":"INSIGHT","title":"","subtitle":""},
+{"role":"Framework","badge":"FRAMEWORK","title":"","subtitle":""},
+{"role":"Explicação","badge":"EXPLICAÇÃO","title":"","subtitle":""},
+{"role":"Exemplo","badge":"EXEMPLO","title":"","subtitle":""},
+{"role":"Erro","badge":"ERRO COMUM","title":"","subtitle":""},
+{"role":"CTA","badge":"PRÓXIMO PASSO","title":"","subtitle":""}
+]}
+Regras: title ≤7 palavras sem ponto final, subtitle 1-2 frases PT-BR.`,1000);
+  const m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error('JSON inválido');
+  return JSON.parse(m[0]).slides;
+}
+
+async function api(prompt,maxTok){
+  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:maxTok,messages:[{role:'user',content:prompt}]})});
+  const d=await r.json();if(d.error)throw new Error(d.error.message);
+  return d.content.filter(x=>x.type==='text').map(x=>x.text).join('');
+}
+
+/* ── Sample ── */
+function loadSample(){
+  document.getElementById('topicInput').value='IA como sistema de negócios';
+  slides=[
+    {role:'Hook',badge:'GANCHO',title:'Você usa IA como ferramenta',subtitle:'Mas os que crescem de verdade estão usando como infraestrutura. A diferença é brutal.'},
+    {role:'Problema',badge:'PROBLEMA',title:'O erro que 90% comete',subtitle:'Comprar prompts, assinar ferramentas, mas nunca conectar nada. O resultado? Zero escala.'},
+    {role:'Insight',badge:'INSIGHT',title:'IA isolada não muda nada',subtitle:'O poder real aparece quando os agentes conversam entre si e trabalham enquanto você dorme.'},
+    {role:'Framework',badge:'FRAMEWORK',title:'O sistema de 3 camadas',subtitle:'Entrada → Processamento → Saída. Cada parte automatizada com um agente especializado.'},
+    {role:'Explicação',badge:'EXPLICAÇÃO',title:'Como funciona na prática',subtitle:'Um agente pesquisa, outro escreve, outro publica. Você só define a estratégia.'},
+    {role:'Exemplo',badge:'EXEMPLO',title:'De 3h para 12 minutos',subtitle:'Uma empresa de conteúdo reduziu o tempo de produção em 96% com este modelo de agentes.'},
+    {role:'Erro',badge:'ERRO COMUM',title:'Automatizar sem estratégia',subtitle:'Agentes sem objetivo claro geram volume sem resultado. Defina o que quer escalar primeiro.'},
+    {role:'CTA',badge:'PRÓXIMO PASSO',title:'Construa seu sistema agora',subtitle:'Salva esse carrossel. Nos próximos posts o passo a passo de cada camada.'}
+  ];
+  cur=0;buildThumbs();renderSlide(0);unlockExport();
+  log('SISTEMA','Exemplo carregado ✓','done');toast('Exemplo carregado ✓');
+}
+
+function resetAll(){
+  slides=[];cur=0;bgImage=null;
+  document.getElementById('topicInput').value='';
+  document.getElementById('carTitle').value='Novo Carrossel · Autoridade';
+  document.getElementById('imgLbl').textContent='Enviar foto';
+  document.getElementById('clearImgBtn').style.display='none';
+  document.getElementById('agentLog').innerHTML='<div class="log-line"><span class="log-ag">SISTEMA</span><span class="log-msg">Pronto para gerar.</span></div>';
+  buildThumbs();renderSlide(0);
+  document.getElementById('exportPngBtn').disabled=true;
+  document.getElementById('exportOneBtn').disabled=true;
+  document.getElementById('saveBtn').disabled=true;
+}
+
+function setBusy(v){
+  document.getElementById('btnAll').disabled=v;
+  document.getElementById('btnCards').disabled=v;
+  document.getElementById('btnAll').innerHTML=v?'<span class="spinner"></span>Gerando...':'✦✦ Gerar Tudo';
+}
+function delay(ms){return new Promise(r=>setTimeout(r,ms))}
+
+buildThumbs();renderSlide(0);
+</script>
+</body>
+</html>
